@@ -37,5 +37,6 @@ module.exports = (webpackConfig, { resolve, getNameByFilePath }) => {
         .use('file-loader').loader('file-loader')
         .options({
             name: file => getNameByFilePath(file) + '.wxml',
-        })
+        }).end()
+        .use('html2wxml-loader').loader('html2wxml-loader')
 }
