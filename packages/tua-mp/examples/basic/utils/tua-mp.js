@@ -1097,6 +1097,416 @@ var triggerImmediateWatch = function triggerImmediateWatch(vm, watch) {
     });
 };
 
+var ASSET_TYPES = ['component', 'directive', 'filter'];
+
+var LIFECYCLE_HOOKS = ['beforeCreate', 'created', 'beforeMount', 'mounted', 'beforeUpdate', 'updated', 'beforeDestroy', 'destroyed', 'activated', 'deactivated', 'onLoad', 'onReady', 'onShow', 'onHide', 'onUnload', 'onPullDownRefresh', 'onReachBottom', 'onShareAppMessage', 'onPageScroll', 'onTabItemTap'];
+
+/*       */
+
+var _toString$1 = Object.prototype.toString;
+
+/**
+ * Strict object type check. Only returns true
+ * for plain JavaScript objects.
+ */
+function isPlainObject$1(obj) {
+  return _toString$1.call(obj) === '[object Object]';
+}
+
+/**
+ * Make a map and return a function for checking if a key
+ * is in that map.
+ */
+function makeMap(str, expectsLowerCase) {
+  var map = Object.create(null);
+  var list = str.split(',');
+  for (var i = 0; i < list.length; i++) {
+    map[list[i]] = true;
+  }
+  return expectsLowerCase ? function (val) {
+    return map[val.toLowerCase()];
+  } : function (val) {
+    return map[val];
+  };
+}
+
+/**
+ * Check if a tag is a built-in tag.
+ */
+var isBuiltInTag = makeMap('slot,component', true);
+
+/**
+ * Check if a attribute is a reserved attribute.
+ */
+var isReservedAttribute = makeMap('key,ref,slot,is');
+
+/**
+ * Check whether the object has the property.
+ */
+var hasOwnProperty = Object.prototype.hasOwnProperty;
+
+function hasOwn(obj, key) {
+  return hasOwnProperty.call(obj, key);
+}
+
+/**
+ * Create a cached version of a pure function.
+ */
+function cached(fn) {
+  var cache = Object.create(null);
+  return function cachedFn(str) {
+    var hit = cache[str];
+    return hit || (cache[str] = fn(str));
+  };
+}
+
+/**
+ * Camelize a hyphen-delimited string.
+ */
+var camelizeRE = /-(\w)/g;
+var camelize = cached(function (str) {
+  return str.replace(camelizeRE, function (_, c) {
+    return c ? c.toUpperCase() : '';
+  });
+});
+
+/**
+ * Mix properties into target object.
+ */
+function extend(to, _from) {
+  for (var key in _from) {
+    to[key] = _from[key];
+  }
+  return to;
+}
+
+/*       */
+
+var warn$1 = console.warn;
+/**
+ * Option overwriting strategies are functions that handle
+ * how to merge a parent option value and a child option
+ * value into the final value.
+ */
+var strats = Object.create(null); // config.optionMergeStrategies
+
+/**
+ * Options with restrictions
+ */
+{
+  strats.el = strats.propsData = function (parent, child, vm, key) {
+    if (!vm) {
+      warn$1('option "' + key + '" can only be used during instance ' + 'creation with the `new` keyword.');
+    }
+    return defaultStrat(parent, child);
+  };
+}
+
+/**
+ * Helper that recursively merges two data objects together.
+ */
+function mergeData(to, from) {
+  if (!from) return to;
+  var key = void 0;
+  var keys = Object.keys(from);
+  for (var i = 0; i < keys.length; i++) {
+    key = keys[i];
+
+    // 这里比较暴力，直接覆盖
+    to[key] = from[key];
+
+    // toVal = to[key]
+    // fromVal = from[key]
+    // if (!hasOwn(to, key)) {
+    //   set(to, key, fromVal)
+    // } else if (isPlainObject(toVal) && isPlainObject(fromVal)) {
+    //   mergeData(toVal, fromVal)
+    // }
+  }
+  return to;
+}
+
+/**
+ * Data
+ */
+function mergeDataOrFn(parentVal, childVal, vm) {
+  // if (!vm) {
+  //   // in a Vue.extend merge, both should be functions
+  //   if (!childVal) {
+  //     return parentVal
+  //   }
+  //   if (!parentVal) {
+  //     return childVal
+  //   }
+  //   // when parentVal & childVal are both present,
+  //   // we need to return a function that returns the
+  //   // merged result of both functions... no need to
+  //   // check if parentVal is a function here because
+  //   // it has to be a function to pass previous merges.
+  //   return function mergedDataFn() {
+  //     return mergeData(
+  //       typeof childVal === 'function' ? childVal.call(this) : childVal,
+  //       parentVal.call(this)
+  //     )
+  //   }
+  // } else
+  if (parentVal || childVal) {
+    return function mergedInstanceDataFn() {
+      // instance merge
+      var instanceData = typeof childVal === 'function' ? childVal.call(vm) : childVal;
+      var defaultData = typeof parentVal === 'function' ? parentVal.call(vm) : undefined;
+
+      console.log('instanceData', instanceData, defaultData);
+      if (instanceData) {
+        return mergeData(instanceData, defaultData);
+      } else {
+        return defaultData;
+      }
+    };
+  }
+}
+
+strats.data = function (parentVal, childVal, vm) {
+  // if (!vm) {
+  //   if (childVal && typeof childVal !== 'function') {
+  //     "development" !== 'production' && warn(
+  //       'The "data" option should be a function ' +
+  //       'that returns a per-instance value in component ' +
+  //       'definitions.',
+  //       vm
+  //     )
+  //
+  //     return parentVal
+  //   }
+  //   return mergeDataOrFn.call(this, parentVal, childVal)
+  // }
+
+  return mergeDataOrFn(parentVal, childVal, vm);
+};
+
+/**
+ * Hooks and props are merged as arrays.
+ */
+function mergeHook(parentVal, childVal) {
+  return childVal ? parentVal ? parentVal.concat(childVal) : Array.isArray(childVal) ? childVal : [childVal] : parentVal;
+}
+
+LIFECYCLE_HOOKS.forEach(function (hook) {
+  strats[hook] = mergeHook;
+});
+
+/**
+ * Assets
+ *
+ * When a vm is present (instance creation), we need to do
+ * a three-way merge between constructor options, instance
+ * options and parent options.
+ */
+function mergeAssets(parentVal, childVal) {
+  var res = Object.create(parentVal || null);
+  return childVal ? extend(res, childVal) : res;
+}
+
+ASSET_TYPES.forEach(function (type) {
+  strats[type + 's'] = mergeAssets;
+});
+
+/**
+ * Watchers.
+ *
+ * Watchers hashes should not overwrite one
+ * another, so we merge them as arrays.
+ */
+strats.watch = function (parentVal, childVal) {
+  // work around Firefox's Object.prototype.watch...
+  // if (parentVal === nativeWatch) parentVal = undefined
+  // if (childVal === nativeWatch) childVal = undefined
+  /* istanbul ignore if */
+  if (!childVal) return Object.create(parentVal || null);
+  if (!parentVal) return childVal;
+  var ret = {};
+  extend(ret, parentVal);
+  for (var key in childVal) {
+    var parent = ret[key];
+    var child = childVal[key];
+    if (parent && !Array.isArray(parent)) {
+      parent = [parent];
+    }
+    ret[key] = parent ? parent.concat(child) : Array.isArray(child) ? child : [child];
+  }
+  return ret;
+};
+
+/**
+ * Other object hashes.
+ */
+strats.props = strats.methods = strats.inject = strats.computed = function (parentVal, childVal) {
+  if (!childVal) return Object.create(parentVal || null);
+  if (!parentVal) return childVal;
+  var ret = Object.create(null);
+  extend(ret, parentVal);
+  extend(ret, childVal);
+  return ret;
+};
+strats.provide = mergeDataOrFn;
+
+/**
+ * Default strategy.
+ */
+var defaultStrat = function defaultStrat(parentVal, childVal) {
+  return childVal === undefined ? parentVal : childVal;
+};
+
+/**
+ * Validate component names
+ */
+// function checkComponents (options: Object) {
+//   for (const key in options.components) {
+//     const lower = key.toLowerCase()
+//     if (isBuiltInTag(lower) || config.isReservedTag(lower)) {
+//       warn(
+//         'Do not use built-in or reserved HTML elements as component ' +
+//         'id: ' + key
+//       )
+//     }
+//   }
+// }
+
+/**
+ * Ensure all props option syntax are normalized into the
+ * Object-based format.
+ */
+function normalizeProps(options) {
+  var props = options.props;
+  if (!props) return;
+  var res = {};
+  var i = void 0,
+      val = void 0,
+      name = void 0;
+  if (Array.isArray(props)) {
+    i = props.length;
+    while (i--) {
+      val = props[i];
+      if (typeof val === 'string') {
+        name = camelize(val);
+        res[name] = { type: null };
+      } else {
+        warn$1('props must be strings when using array syntax.');
+      }
+    }
+  } else if (isPlainObject$1(props)) {
+    for (var key in props) {
+      val = props[key];
+      name = camelize(key);
+      res[name] = isPlainObject$1(val) ? val : { type: val };
+    }
+  }
+  options.props = res;
+}
+
+/**
+ * Normalize all injections into Object-based format
+ */
+function normalizeInject(options) {
+  var inject = options.inject;
+  if (Array.isArray(inject)) {
+    var normalized = options.inject = {};
+    for (var i = 0; i < inject.length; i++) {
+      normalized[inject[i]] = inject[i];
+    }
+  }
+}
+
+/**
+ * Normalize raw function directives into object format.
+ */
+function normalizeDirectives(options) {
+  var dirs = options.directives;
+  if (dirs) {
+    for (var key in dirs) {
+      var def = dirs[key];
+      if (typeof def === 'function') {
+        dirs[key] = { bind: def, update: def };
+      }
+    }
+  }
+}
+
+/**
+ * Merge two option objects into a new one.
+ * Core utility used in both instantiation and inheritance.
+ */
+function mergeOptions(parent, child, vm) {
+  // if ("development" !== 'production') {
+  //   checkComponents(child)
+  // }
+
+  if (typeof child === 'function') {
+    child = child.options;
+  }
+
+  normalizeProps(child);
+  normalizeInject(child);
+  normalizeDirectives(child);
+  var extendsFrom = child.extends;
+  if (extendsFrom) {
+    parent = mergeOptions(parent, extendsFrom, vm);
+  }
+  if (child.mixins) {
+    for (var i = 0, l = child.mixins.length; i < l; i++) {
+      parent = mergeOptions(parent, child.mixins[i], vm);
+    }
+  }
+  var options = {};
+  var key = void 0;
+  for (key in parent) {
+    mergeField(key);
+  }
+  for (key in child) {
+    if (!hasOwn(parent, key)) {
+      mergeField(key);
+    }
+  }
+
+  function mergeField(key) {
+    var strat = strats[key] || defaultStrat;
+    options[key] = strat(parent[key], child[key], vm, key);
+  }
+  return options;
+}
+
+var mixin = (function (options) {
+  console.log('args options -- > ', options);
+  options = mergeOptions(Object.create(null), options);
+  console.log('mergeOptions options -- > ', options);
+  delete options.mixins;
+  delete options.extends;
+
+  LIFECYCLE_HOOKS.forEach(function (v) {
+    if (!isFn(options[v]) && Array.isArray(options[v])) {
+      // console.log('options[v]',v, options[v])
+      options['$' + v] = options[v];
+      options[v] = function () {
+        var _this = this;
+
+        for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
+          args[_key] = arguments[_key];
+        }
+
+        options['$' + v].forEach(function (F) {
+          return F.apply(_this, args);
+        });
+      };
+    }
+  });
+  options.data = isFn(options.data) ? options.data() : options.data;
+  // if(isFn(options.data)) {
+  //   console.log('data', options.data())
+  // }
+  console.log('return options -- > ', options, isFn(options.data), '\n\n');
+  return options;
+});
+
 /**
  * 适配 Vue 风格代码，生成小程序原生组件
  * @param {Object|Function} data 组件的内部数据
@@ -1186,6 +1596,10 @@ var TuaComp = function TuaComp(_ref) {
     }));
 };
 
+var TuaComp$1 = (function (options) {
+    return TuaComp(mixin(options));
+});
+
 /**
  * 适配 Vue 风格代码，生成小程序页面
  * @param {Object|Function} data 页面组件的内部数据
@@ -1261,6 +1675,19 @@ var TuaPage = function TuaPage(_ref) {
     }));
 };
 
+var TuaPage$1 = (function (options) {
+    return TuaPage(mixin(options));
+});
+
 log('Version ' + version);
 
-export { TuaComp, TuaPage };
+function index (_ref) {
+  var _ref$type = _ref.type,
+      type = _ref$type === undefined ? 'page' : _ref$type,
+      rest = objectWithoutProperties(_ref, ['type']);
+
+  return type === 'page' ? TuaPage$1(rest) : TuaComp$1(rest);
+}
+
+export default index;
+export { TuaComp$1 as TuaComp, TuaPage$1 as TuaPage };

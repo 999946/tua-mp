@@ -1,3 +1,4 @@
+.idea
 node_modules/
 coverage/
 docs/.vuepress/dist/
@@ -7,3 +8,5 @@ yarn.lock
 npm-debug.log
 yarn-error.log
 lerna-debug.log
+
+webpack-vue-test/

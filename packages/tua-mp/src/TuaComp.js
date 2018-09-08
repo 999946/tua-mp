@@ -18,6 +18,8 @@ import {
     triggerImmediateWatch,
 } from './init'
 
+import mixin from './vue/mixin'
+
 /**
  * 适配 Vue 风格代码，生成小程序原生组件
  * @param {Object|Function} data 组件的内部数据
@@ -27,7 +29,7 @@ import {
  * @param {Object} computed 计算属性
  * @param {Object|Function|Null} properties 小程序原生的组件的对外属性
  */
-export const TuaComp = ({
+const TuaComp = ({
     data: rawData = {},
     props = {},
     watch = {},
@@ -87,3 +89,5 @@ export const TuaComp = ({
         rest.destroyed && rest.destroyed.apply(this, options)
     },
 })
+
+export default (options) => TuaComp(mixin(options))

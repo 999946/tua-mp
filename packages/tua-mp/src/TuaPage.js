@@ -16,6 +16,8 @@ import {
     triggerImmediateWatch,
 } from './init'
 
+import mixin from './vue/mixin'
+
 /**
  * 适配 Vue 风格代码，生成小程序页面
  * @param {Object|Function} data 页面组件的内部数据
@@ -23,7 +25,7 @@ import {
  * @param {Object} methods 页面组件的方法，包括事件响应函数和任意的自定义方法
  * @param {Object} computed 计算属性
  */
-export const TuaPage = ({
+const TuaPage = ({
     data: rawData = {},
     watch = {},
     methods = {},
@@ -75,3 +77,5 @@ export const TuaPage = ({
         rest.destroyed && rest.destroyed.apply(this, options)
     },
 })
+
+export default (options) => TuaPage(mixin(options))
