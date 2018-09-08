@@ -13,7 +13,8 @@ module.exports = (webpackConfig, { resolve, getNameByFilePath }) => {
                 parseComponent: require('vue-template-compiler')
                     .parseComponent,
             },
-        })
+        }).end()
+        .use('tua-mp-loader').loader('tua-mp-loader')
 
     // 处理 <config>{...}</config> 代码块
     // 生成 .json 文件

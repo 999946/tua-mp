@@ -1,0 +1,76 @@
+{
+    "name": "tua-mp-loader",
+    "version": "0.0.1",
+    "description": "A progressive miniprogram framework for coding like Vue",
+    "main": "src/index.js",
+    "files": [
+        "examples/basic/utils/tua-mp.js"
+    ],
+    "scripts": {
+        "cov": "open coverage/lcov-report/index.html",
+        "tdd": "cross-env NODE_ENV=test jest --watch",
+        "test": "cross-env NODE_ENV=test jest && codecov",
+        "lint": "eslint --fix --ext .js src/",
+        "build": "cross-env NODE_ENV=prod rollup -c",
+        "watch": "cross-env NODE_ENV=prod rollup -c -w",
+        "start": "npm run watch",
+        "pub": "npm run build && npm publish",
+        "precommit": "npm run build && lint-staged"
+    },
+    "lint-staged": {
+        "src/**/*.{js,vue}": [
+            "npm run lint",
+            "git add"
+        ]
+    },
+    "jest": {
+        "bail": true,
+        "clearMocks": true,
+        "setupFiles": [
+            "./__mocks__/wxMock.js"
+        ],
+        "transform": {
+            "^.+\\.js$": "babel-jest"
+        },
+        "testPathIgnorePatterns": [
+            "./__tests__/utils.js",
+            "./examples/"
+        ],
+        "collectCoverage": true,
+        "coveragePathIgnorePatterns": [
+            "./package.json",
+            "./src/utils/index.js",
+            "./__tests__/utils.js",
+            "./__mocks__/wxMock.js"
+        ]
+    },
+    "eslintIgnore": [
+        "package.json"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tuateam/tua-mp.git"
+    },
+    "keywords": [
+        "vue",
+        "tua-mp",
+        "mp",
+        "wx",
+        "miniprogram",
+        "wxmp",
+        "weapp"
+    ],
+    "author": "StEve Young",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/tuateam/tua-mp/issues"
+    },
+    "homepage": "https://github.com/tuateam/tua-mp#readme",
+    "devDependencies": {
+        "codecov": "^3.0.4",
+        "cross-env": "^5.2.0",
+        "eslint": "^5.4.0",
+        "jest": "^23.5.0",
+        "rollup": "^0.64.1"
+    }
+}
